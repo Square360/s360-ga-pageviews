@@ -1,0 +1,75 @@
+<?php
+
+use Drupal\file\Entity\File;
+
+/**
+ * Implements hook_schema().
+ */
+function s360_most_popular_schema() {
+  $schema['s360_mpga'] = [
+    'description' => 'Stores data associated with Google Analytics.',
+    'fields' => [
+      'mpid' => [
+        'description' => 'The primary identifier for most popular',
+        'type' => 'serial',
+        'not null' => TRUE,
+        'unsigned' => TRUE,
+      ],
+      'nid' => [
+        'description' => 'The node id.',
+        'type' => 'int',
+        'length' => 10,
+        'not null' => FALSE,
+        'unsigned' => TRUE,
+      ],
+      'page_path' => [
+        'description' => 'The pages visited, listed by URI.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+      ],
+      'pageviews' => [
+        'description' => 'Pageviews is the total number of views per page.',
+        'type' => 'int',
+        'length' => 10,
+        'not null' => TRUE,
+        'unsigned' => TRUE,
+      ],
+      'domain' => [
+        'description' => '',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+      ],
+    ],
+    'primary key' => ['mpid'],
+  ];
+
+  return $schema;
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function s360_most_popular_uninstall() {
+  $domains = array_merge(
+    [s360_most_popular_get_default_domain()],
+    s360_most_popular_get_drupal_domains()
+  );
+
+  foreach ($domains as $domain) {
+    $domain_settings = \Drupal::config('s360_most_popular.' . $domain['id'] . '.settings');
+    $domain_key_file = $domain_settings->get('key_file');
+
+    if ($domain_key_file) {
+      $file = File::load(reset($domain_key_file));
+
+      if ($file) {
+        $file->delete();
+      }
+    }
+
+    \Drupal::configFactory()->getEditable('s360_most_popular.' . $domain['id'] . '.settings')->delete();
+  }
+
+}

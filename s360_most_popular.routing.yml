@@ -1,0 +1,7 @@
+s360_most_popular.settings:
+  path: '/admin/config/services/s360-most-popular'
+  defaults:
+    _title: 'Most Popular Settings'
+    _form: 'Drupal\s360_most_popular\Form\SettingsForm'
+  requirements:
+    _permission: 'administer s360_most_popular settings'

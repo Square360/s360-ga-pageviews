@@ -1,0 +1,12 @@
+{
+    "name": "square360/s360_most_popular",
+    "description": "Square360 Most Popular",
+    "type": "drupal-module",
+    "keywords": [
+        "Drupal",
+        "Google Analytics"
+    ],
+    "license": "GPL-2.0+",
+    "minimum-stability": "dev",
+    "version": "1.0.0"
+}

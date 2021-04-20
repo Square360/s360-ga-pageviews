@@ -1,0 +1,264 @@
+<?php
+
+/**
+ * @file
+ * s360_most_popular.module
+ */
+
+use Drupal\Component\Utility\Timer;
+use Drupal\Core\Cache\CacheBackendInterface;
+use Drupal\Core\StreamWrapper\PrivateStream;
+use Drupal\file\Entity\File;
+use Drupal\s360_most_popular\GoogleAnalytics\GoogleAnalytics;
+
+define('S360_MOST_POPULAR_PRIVATE_FOLDER_PATH', PrivateStream::basePath());
+define('S360_MOST_POPULAR_GA_KEY_FILE_FOLDER', 'ga_key_file');
+
+/**
+ * Implements hook_cron().
+ */
+function s360_most_popular_cron() {
+  $ga_last_run = \Drupal::state()->get('s360_most_popular.ga_last_run', 0);
+  $request_time = \Drupal::time()->getRequestTime();
+
+  // Make sure this only runs once a day.
+  if (($request_time - $ga_last_run) > 86400) {
+    Timer::start('s360_most_popular');
+
+    \Drupal::logger('s360_most_popular')->info('Starting imported Google Analytics.');
+
+    _s360_most_popular_generate_google_analytics_report();
+
+    Timer::stop('s360_most_popular');
+
+    \Drupal::logger('cbey_migrate')->info('Execution of importing Google Analytics took @time.', [
+      '@time' => Timer::read('s360_most_popular') . 'ms',
+    ]);
+
+    \Drupal::state()->set('s360_most_popular.ga_last_run', $request_time);
+  }
+}
+
+function s360_most_popular_preprocess_page(&$v) {
+  $domain_settings = \Drupal::config('s360_most_popular.default.settings');
+  $domain_key_file = $domain_settings->get('key_file');
+
+  if ($domain_key_file) {
+    /** Drupal\file\Entity\File $file */
+    $file = File::load(reset($domain_key_file));
+    // dump($file);
+    // // dump(S360_MOST_POPULAR_PRIVATE_FOLDER_PATH . '/' . S360_MOST_POPULAR_GA_KEY_FILE_FOLDER . '/'. $file->getFilename());
+    // $file->delete();
+    // dump($file);
+  }
+}
+
+/**
+ * Determines if a site is using the "domain" module.
+ *
+ * @return boolean
+ *   True if site is using domains, false otherwise.
+ */
+function s360_most_popular_site_using_drupal_domains() {
+  return \Drupal::moduleHandler()->moduleExists('domain');
+}
+
+/**
+ * Returns the name and id of all active domains. If the site is not using
+ * the domain module, return empty array.
+ *
+ * @return array
+ *   An array of active domains or an empty array.
+ */
+function s360_most_popular_get_drupal_domains() {
+  if (s360_most_popular_site_using_drupal_domains()) {
+    $cid = 's360_most_popular:domains';
+    $drupal_cache = \Drupal::cache();
+    $data = $drupal_cache->get($cid);
+
+    if (empty($data)) {
+      $domain_list = [];
+
+      $storage = \Drupal::entityTypeManager()->getStorage('domain');
+      $domains = $storage->loadMultiple();
+
+      /** @var \Drupal\domain\entity\Domain $domain */
+      foreach ($domains as $domain) {
+        if ($domain->status()) {
+          $domain_list[] = [
+            'name' => $domain->label(),
+            'id' => $domain->id(),
+          ];
+        }
+      }
+
+      // Cache the domain_list since this probably isn't going to change often.
+      $drupal_cache->set(
+        $cid,
+        $domain_list,
+        CacheBackendInterface::CACHE_PERMANENT,
+        ['domain_list']
+      );
+    }
+    else {
+      $domain_list = $data->data;
+    }
+
+    return $domain_list;
+  }
+  // Return empty array if the site isn't using domains.
+  else {
+    return [];
+  }
+
+}
+
+/**
+ * Returns "default" for both name and id of the domain. If the site uses
+ * domains, this becomes a place to hold Drupal config that can be used across
+ * the domains. Otherwise it becomes the domain to use in GoogleAnalytics class.
+ *
+ * @return array
+ *   The single "default" doamin.
+ */
+function s360_most_popular_get_default_domain() {
+  return [
+    'name' => 'Default',
+    'id' => 'default',
+  ];
+}
+
+/**
+ * Merges the default domain settings with another domain based on $domain_id.
+ *
+ * @param array $domain_id
+ *   The ID of the domain to get the config from.
+ *
+ * @return array
+ *   The final, merged config for the domain.
+ */
+function _s360_most_popular_merge_domain_config($domain_id) {
+  $default_domain_settings = \Drupal::config('s360_most_popular.default.settings');
+  $default_domain_key_file = $default_domain_settings->get('key_file');
+  $default_domain_view_id = $default_domain_settings->get('view_id');
+  $default_domain_filter_expression = $default_domain_settings->get('filter_expression');
+  $default_domain_look_back = $default_domain_settings->get('look_back');
+
+  $domain_settings = \Drupal::config('s360_most_popular.' . $domain_id . '.settings');
+  $domain_key_file = $domain_settings->get('key_file');
+  $domain_view_id = $domain_settings->get('view_id');
+  $domain_filter_expression = $domain_settings->get('filter_expression');
+  $domain_look_back = $default_domain_settings->get('look_back');
+
+  if ($domain_key_file) {
+    $file = File::load(reset($domain_key_file));
+  }
+  else {
+    $file = File::load(reset($default_domain_key_file));
+  }
+
+  $key_file = $file->getFilename();
+
+  return [
+    'key_file' => $key_file,
+    'view_id' => ($domain_view_id) ? $domain_view_id : $default_domain_view_id,
+    'filter_expression' => ($domain_filter_expression) ? $domain_filter_expression : $default_domain_filter_expression,
+    'look_back' => ($domain_look_back) ? $domain_look_back : $default_domain_look_back,
+  ];
+}
+
+/**
+ * Get all the domains
+ *
+ * @return void
+ */
+function _s360_most_popular_generate_google_analytics_report() {
+  // Get Drupal domains.
+  $drupal_domains = s360_most_popular_get_drupal_domains();
+
+  $domains = empty($drupal_domains)
+    ? [s360_most_popular_get_default_domain()]
+    : $drupal_domains;
+
+  foreach ($domains as $domain) {
+    $domain_name = $domain['name'];
+    $domain_id = $domain['id'];
+
+    // Merge the default domain config with the $domain.
+    $domain_config = _s360_most_popular_merge_domain_config($domain_id);
+
+    // Add name and id to the $domain_config.
+    $domain_config = array_merge($domain_config, [
+      'name' => $domain_name,
+      'id' => $domain_id,
+    ]);
+
+    // Skip GA initialize if the view_id is empty.
+    if (empty($domain_config['view_id'])) {
+      continue;
+    }
+
+    // Query Google Analytics.
+    $ga = new GoogleAnalytics($domain_config);
+    $ga_analytics = $ga->initializeAnalytics();
+    $ga_report = $ga->getReport($ga_analytics);
+
+    // Save the data.
+    _s360_most_popular_save_google_analytics_data($domain_id, $ga->normalizeReport($ga_report));
+  }
+}
+
+/**
+ * Saves all the pages returned from Google Analytics.
+ *
+ * @param string $domain_id
+ * @param array $ga_report
+ *
+ * @return void
+ */
+function _s360_most_popular_save_google_analytics_data($domain_id, $ga_report) {
+  /** @var \Drupal\Core\Database\Connection $connection */
+  $connection = \Drupal::service('database');
+
+  // Delete all the records with the $domain_id.
+  $connection->delete('s360_mpga')
+    ->condition('domain', $domain_id)
+    ->execute();
+
+    // Loop over the $ga_report where $page_path is the key and $pageviews is the value.
+  foreach ($ga_report as $page_path => $pageviews) {
+    try {
+      // Get the internal path based on the $page_path.
+      $path_alias = \Drupal::service('path_alias.manager')->getPathByAlias($page_path);
+
+      $nid = 0;
+
+      // If $path_alias matches a node/ route, get the $nid from the $matches.
+      if (preg_match('/node\/(\d+)/', $path_alias, $matches)) {
+        $nid = $matches[1];
+      }
+
+      // Insert the GA records.
+      $connection->insert('s360_mpga')
+        ->fields([
+          'nid' => $nid,
+          'page_path' => $page_path,
+          'pageviews' => $pageviews,
+          'domain' => $domain_id,
+        ])
+        ->execute();
+    }
+    catch (Exception $e) {
+      $message = [
+        'Original error: @error',
+        'Google Analytics record: @ga_page_path (@ga_pageviews)'
+      ];
+
+      \Drupal::logger('s360_most_popular')->error(implode('\n', $message), [
+        '@error' => $e->getMessage(),
+        '@ga_page_path' => $page_path,
+        '@ga_pageviews' => $pageviews,
+      ]);
+    }
+  }
+}
