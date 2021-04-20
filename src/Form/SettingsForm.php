@@ -93,7 +93,7 @@ class SettingsForm extends ConfigFormBase {
 
       $form[$domain_id][$domain_id . '_filter_expression'] = [
         '#type' => 'textarea',
-        '#title' => $this->t('Exclude Filter Expression'),
+        '#title' => $this->t('Filter Expression for Exclusions'),
         '#description' => $this->t('Format should be "ga:pageviews!@[PARTIAL_PAGE_URL_TO_IGNORE]; e.g. "ga:pageviews!@/about;"'),
         '#default_value' => $domain_settings->get('filter_expression'),
         '#required' => $domain_field_required,
