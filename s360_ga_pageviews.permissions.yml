@@ -1,0 +1,4 @@
+administer s360_ga_pageviews settings:
+  title: 'Administer s360_ga_pageviews settings'
+  description: ''
+  restrict access: true

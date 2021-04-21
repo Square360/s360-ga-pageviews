@@ -1,0 +1,7 @@
+s360_ga_pageviews.settings:
+  path: '/admin/config/services/s360-ga-pageviews'
+  defaults:
+    _title: 'Google Analytics Settings'
+    _form: 'Drupal\s360_ga_pageviews\Form\SettingsForm'
+  requirements:
+    _permission: 'administer s360_ga_pageviews settings'

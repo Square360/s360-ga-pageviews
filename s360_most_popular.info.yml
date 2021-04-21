@@ -1,5 +1,0 @@
-name: 'S360 Most Popular'
-description: 'Get most popular pages based on Google Analytics'
-type: module
-package: 'S360'
-core: 8.x

@@ -2,54 +2,31 @@
 
 /**
  * @file
- * s360_most_popular.module
+ * s360_ga_pageviews.module
  */
 
 use Drupal\Component\Utility\Timer;
 use Drupal\Core\Cache\CacheBackendInterface;
 use Drupal\Core\StreamWrapper\PrivateStream;
 use Drupal\file\Entity\File;
-use Drupal\s360_most_popular\GoogleAnalytics\GoogleAnalytics;
+use Drupal\s360_ga_pageviews\GoogleAnalytics\GoogleAnalytics;
 
-define('S360_MOST_POPULAR_PRIVATE_FOLDER_PATH', PrivateStream::basePath());
-define('S360_MOST_POPULAR_GA_KEY_FILE_FOLDER', 'ga_key_file');
+define('S360_GA_PAGEVIEWS_PRIVATE_FOLDER_PATH', PrivateStream::basePath());
+define('S360_GA_PAGEVIEWS_GA_KEY_FILE_FOLDER', 'ga_key_file');
+define('S360_GA_PAGEVIEWS_TABLE_NAME', 's360_ga_pageviews');
 
 /**
  * Implements hook_cron().
  */
-function s360_most_popular_cron() {
-  $ga_last_run = \Drupal::state()->get('s360_most_popular.ga_last_run', 0);
+function s360_ga_pageviews_cron() {
+  $last_run = \Drupal::state()->get('s360_ga_pageviews.last_run', 0);
   $request_time = \Drupal::time()->getRequestTime();
 
   // Make sure this only runs once a day.
-  if (($request_time - $ga_last_run) > 86400) {
-    Timer::start('s360_most_popular');
+  if (($request_time - $last_run) > 86400) {
+    _s360_ga_pageviews_generate_google_analytics_report();
 
-    \Drupal::logger('s360_most_popular')->info('Starting imported Google Analytics.');
-
-    _s360_most_popular_generate_google_analytics_report();
-
-    Timer::stop('s360_most_popular');
-
-    \Drupal::logger('cbey_migrate')->info('Execution of importing Google Analytics took @time.', [
-      '@time' => Timer::read('s360_most_popular') . 'ms',
-    ]);
-
-    \Drupal::state()->set('s360_most_popular.ga_last_run', $request_time);
-  }
-}
-
-function s360_most_popular_preprocess_page(&$v) {
-  $domain_settings = \Drupal::config('s360_most_popular.default.settings');
-  $domain_key_file = $domain_settings->get('key_file');
-
-  if ($domain_key_file) {
-    /** Drupal\file\Entity\File $file */
-    $file = File::load(reset($domain_key_file));
-    // dump($file);
-    // // dump(S360_MOST_POPULAR_PRIVATE_FOLDER_PATH . '/' . S360_MOST_POPULAR_GA_KEY_FILE_FOLDER . '/'. $file->getFilename());
-    // $file->delete();
-    // dump($file);
+    \Drupal::state()->set('s360_ga_pageviews.last_run', $request_time);
   }
 }
 
@@ -59,26 +36,28 @@ function s360_most_popular_preprocess_page(&$v) {
  * @return boolean
  *   True if site is using domains, false otherwise.
  */
-function s360_most_popular_site_using_drupal_domains() {
+function s360_ga_pageviews_site_using_drupal_domains() {
   return \Drupal::moduleHandler()->moduleExists('domain');
 }
 
 /**
- * Returns the name and id of all active domains. If the site is not using
- * the domain module, return empty array.
+ * Returns an array with the name and id of "default". If the site is using the
+ * domain module, adds the name and id of all active domains to that array.
  *
  * @return array
- *   An array of active domains or an empty array.
+ *   An array of domains.
  */
-function s360_most_popular_get_drupal_domains() {
-  if (s360_most_popular_site_using_drupal_domains()) {
-    $cid = 's360_most_popular:domains';
+function s360_ga_pageviews_get_domains() {
+  $domain_list = [];
+
+  $domain_list[] = s360_ga_pageviews_get_default_domain();
+
+  if (s360_ga_pageviews_site_using_drupal_domains()) {
+    $cid = 's360_ga_pageviews:domains';
     $drupal_cache = \Drupal::cache();
     $data = $drupal_cache->get($cid);
 
     if (empty($data)) {
-      $domain_list = [];
-
       $storage = \Drupal::entityTypeManager()->getStorage('domain');
       $domains = $storage->loadMultiple();
 
@@ -103,14 +82,9 @@ function s360_most_popular_get_drupal_domains() {
     else {
       $domain_list = $data->data;
     }
-
-    return $domain_list;
-  }
-  // Return empty array if the site isn't using domains.
-  else {
-    return [];
   }
 
+  return $domain_list;
 }
 
 /**
@@ -121,7 +95,7 @@ function s360_most_popular_get_drupal_domains() {
  * @return array
  *   The single "default" doamin.
  */
-function s360_most_popular_get_default_domain() {
+function s360_ga_pageviews_get_default_domain() {
   return [
     'name' => 'Default',
     'id' => 'default',
@@ -137,14 +111,14 @@ function s360_most_popular_get_default_domain() {
  * @return array
  *   The final, merged config for the domain.
  */
-function _s360_most_popular_merge_domain_config($domain_id) {
-  $default_domain_settings = \Drupal::config('s360_most_popular.default.settings');
+function _s360_ga_pageviews_merge_domain_config($domain_id) {
+  $default_domain_settings = \Drupal::config('s360_ga_pageviews.default.settings');
   $default_domain_key_file = $default_domain_settings->get('key_file');
   $default_domain_view_id = $default_domain_settings->get('view_id');
   $default_domain_filter_expression = $default_domain_settings->get('filter_expression');
   $default_domain_look_back = $default_domain_settings->get('look_back');
 
-  $domain_settings = \Drupal::config('s360_most_popular.' . $domain_id . '.settings');
+  $domain_settings = \Drupal::config('s360_ga_pageviews.' . $domain_id . '.settings');
   $domain_key_file = $domain_settings->get('key_file');
   $domain_view_id = $domain_settings->get('view_id');
   $domain_filter_expression = $domain_settings->get('filter_expression');
@@ -157,7 +131,9 @@ function _s360_most_popular_merge_domain_config($domain_id) {
     $file = File::load(reset($default_domain_key_file));
   }
 
-  $key_file = $file->getFilename();
+  if ($file) {
+    $key_file = $file->getFilename();
+  }
 
   return [
     'key_file' => $key_file,
@@ -172,20 +148,20 @@ function _s360_most_popular_merge_domain_config($domain_id) {
  *
  * @return void
  */
-function _s360_most_popular_generate_google_analytics_report() {
+function _s360_ga_pageviews_generate_google_analytics_report() {
   // Get Drupal domains.
-  $drupal_domains = s360_most_popular_get_drupal_domains();
+  $domains = s360_ga_pageviews_get_domains();
 
-  $domains = empty($drupal_domains)
-    ? [s360_most_popular_get_default_domain()]
-    : $drupal_domains;
+  if (s360_ga_pageviews_site_using_drupal_domains()) {
+    array_shift($domains);
+  }
 
   foreach ($domains as $domain) {
     $domain_name = $domain['name'];
     $domain_id = $domain['id'];
 
     // Merge the default domain config with the $domain.
-    $domain_config = _s360_most_popular_merge_domain_config($domain_id);
+    $domain_config = _s360_ga_pageviews_merge_domain_config($domain_id);
 
     // Add name and id to the $domain_config.
     $domain_config = array_merge($domain_config, [
@@ -204,7 +180,7 @@ function _s360_most_popular_generate_google_analytics_report() {
     $ga_report = $ga->getReport($ga_analytics);
 
     // Save the data.
-    _s360_most_popular_save_google_analytics_data($domain_id, $ga->normalizeReport($ga_report));
+    _s360_ga_pageviews_save_google_analytics_data($domain_id, $ga->normalizeReport($ga_report));
   }
 }
 
@@ -216,12 +192,12 @@ function _s360_most_popular_generate_google_analytics_report() {
  *
  * @return void
  */
-function _s360_most_popular_save_google_analytics_data($domain_id, $ga_report) {
+function _s360_ga_pageviews_save_google_analytics_data($domain_id, $ga_report) {
   /** @var \Drupal\Core\Database\Connection $connection */
   $connection = \Drupal::service('database');
 
   // Delete all the records with the $domain_id.
-  $connection->delete('s360_mpga')
+  $connection->delete(S360_GA_PAGEVIEWS_TABLE_NAME)
     ->condition('domain', $domain_id)
     ->execute();
 
@@ -239,7 +215,7 @@ function _s360_most_popular_save_google_analytics_data($domain_id, $ga_report) {
       }
 
       // Insert the GA records.
-      $connection->insert('s360_mpga')
+      $connection->insert(S360_GA_PAGEVIEWS_TABLE_NAME)
         ->fields([
           'nid' => $nid,
           'page_path' => $page_path,
@@ -254,7 +230,7 @@ function _s360_most_popular_save_google_analytics_data($domain_id, $ga_report) {
         'Google Analytics record: @ga_page_path (@ga_pageviews)'
       ];
 
-      \Drupal::logger('s360_most_popular')->error(implode('\n', $message), [
+      \Drupal::logger('s360_ga_pageviews')->error(implode('\n', $message), [
         '@error' => $e->getMessage(),
         '@ga_page_path' => $page_path,
         '@ga_pageviews' => $pageviews,

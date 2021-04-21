@@ -1,4 +1,0 @@
-administer s360_most_popular settings:
-  title: 'Administer s360_most_popular settings'
-  description: ''
-  restrict access: true

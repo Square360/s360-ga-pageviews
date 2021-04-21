@@ -1,0 +1,7 @@
+name: 'S360 Google Analytics Pageviews'
+description: 'Use the pageviews metric from Google Analytics to get total number of pages viewed.'
+type: module
+package: 'S360'
+core: 8.x
+dependencies:
+  - drupal:view_custom_table

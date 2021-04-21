@@ -1,6 +1,6 @@
 <?php
 
-namespace Drupal\s360_most_popular\Form;
+namespace Drupal\s360_ga_pageviews\Form;
 
 use Drupal\Core\Form\ConfigFormBase;
 use Drupal\Core\Form\FormStateInterface;
@@ -15,20 +15,7 @@ class SettingsForm extends ConfigFormBase {
    * {@inheritdoc}
    */
   public function getFormId() {
-    return 's360_most_popular_settings';
-  }
-
-  /**
-   * Creates an array of Google Analytics domains.
-   *
-   * @return array
-   *   An array of Google Analytics domains containing name and id.
-   */
-  private function getDomains() {
-    return array_merge(
-      [s360_most_popular_get_default_domain()],
-      s360_most_popular_get_drupal_domains()
-    );
+    return 's360_ga_pageviews_settings';
   }
 
   /**
@@ -37,8 +24,8 @@ class SettingsForm extends ConfigFormBase {
   protected function getEditableConfigNames() {
     $config_names = [];
 
-    foreach ($this->getDomains() as $domain) {
-      $config_names[] = 's360_most_popular.' . $domain['id'] . '.settings';
+    foreach (s360_ga_pageviews_get_domains() as $domain) {
+      $config_names[] = 's360_ga_pageviews.' . $domain['id'] . '.settings';
     }
 
     return $config_names;
@@ -50,31 +37,33 @@ class SettingsForm extends ConfigFormBase {
   public function buildForm(array $form, FormStateInterface $form_state) {
     $form['description'] = [
       '#markup' => implode('', [
-        $this->t('<p>The "Google Analytics Settings" allow us to pull GA pageViews based on the view_id and filter expression provided.</p>'),
+        $this->t('<p>The "Google Analytics Settings" allow the module to pull GA pageViews based on the view_id and filter expression provided. This data populates a table that can be used to create custom views.</p>'),
         (
-          s360_most_popular_site_using_drupal_domains()
+          s360_ga_pageviews_site_using_drupal_domains()
             ? $this->t('<p>You can override any of the default settings with domain specific settings.</p>')
             : ''
         ),
       ]),
     ];
 
-    foreach ($this->getDomains() as $domain) {
+    foreach (s360_ga_pageviews_get_domains() as $domain) {
       $domain_id = $domain['id'];
-      $domain_settings = \Drupal::config('s360_most_popular.' . $domain_id . '.settings');
+      $domain_settings = \Drupal::config('s360_ga_pageviews.' . $domain_id . '.settings');
       $domain_field_required = $domain_id == 'default' ? TRUE : FALSE;
 
       $form[$domain_id] = [
         '#type' => 'details',
         '#title' => $domain['name'] . ' - Google Analytics Settings',
-        '#open' => ($domain_id == 'default' || s360_most_popular_site_using_drupal_domains()) ? TRUE : !empty(array_filter($domain_settings->getRawData())),
+        '#open' => ($domain_id == 'default' || s360_ga_pageviews_site_using_drupal_domains()) ? TRUE : !empty(array_filter($domain_settings->getRawData())),
       ];
 
       $form[$domain_id][$domain_id . '_key_file'] = [
         '#type' => 'managed_file',
         '#title' => $this->t('Authorization Config File'),
-        '#description' => 'JSON formatted credentials file from your GA developers console.',
-        '#upload_location' => 'private://' . S360_MOST_POPULAR_GA_KEY_FILE_FOLDER . '/',
+        '#description' => $this->t('JSON formatted credentials file from your GA <a href="@ga_dev_console" target="_blank">developers console</a>.', [
+          '@ga_dev_console' => 'https://console.cloud.google.com/projectselector2/apis/credentials',
+        ]),
+        '#upload_location' => 'private://' . S360_GA_PAGEVIEWS_GA_KEY_FILE_FOLDER . '/',
         '#upload_validators' => [
           'file_validate_extensions' => ['json'],
         ],
@@ -88,22 +77,23 @@ class SettingsForm extends ConfigFormBase {
         '#description' => $this->t('The ID of view for the GA property.'),
         '#default_value' => $domain_settings->get('view_id'),
         '#required' => TRUE,
-        '#access' => ($domain_id === 'default' && s360_most_popular_site_using_drupal_domains()) ? FALSE : TRUE,
+        '#access' => ($domain_id === 'default' && s360_ga_pageviews_site_using_drupal_domains()) ? FALSE : TRUE,
       ];
 
       $form[$domain_id][$domain_id . '_filter_expression'] = [
         '#type' => 'textarea',
         '#title' => $this->t('Filter Expression for Exclusions'),
-        '#description' => $this->t('Format should be "ga:pageviews!@[PARTIAL_PAGE_URL_TO_IGNORE]; e.g. "ga:pageviews!@/about;"'),
+        '#description' => $this->t('<p>The filter expression limits the data that is returned from the GA report.</p><p>Format should be "ga:pagePath!@[PARTIAL_PAGE_URL_TO_IGNORE]; e.g. "ga:pagePath!@/about;"</p><p>See the full documentation <a href="@ga_filter" target="_blank">here</a>', [
+          '@ga_filter' => 'https://developers.google.com/analytics/devguides/reporting/core/v3/reference#filters',
+        ]),
         '#default_value' => $domain_settings->get('filter_expression'),
         '#required' => $domain_field_required,
       ];
 
-
       $form[$domain_id][$domain_id . '_look_back'] = [
         '#type' => 'select',
         '#title' => $this->t('Number of days to look back'),
-        '#description' => $this->t('How many days should Google Analytics look back to get page views.'),
+        '#description' => $this->t('How many days should GA report look back to get page views.'),
         '#options' => [
           '30' => $this->t('30 Days'),
           '60' => $this->t('60 Days'),
@@ -123,9 +113,9 @@ class SettingsForm extends ConfigFormBase {
    * {@inheritdoc}
    */
   public function submitForm(array &$form, FormStateInterface $form_state) {
-    foreach ($this->getDomains() as $domain) {
+    foreach (s360_ga_pageviews_get_domains() as $domain) {
       $domain_id = $domain['id'];
-      $domain_settings_name = 's360_most_popular.' . $domain_id . '.settings';
+      $domain_settings_name = 's360_ga_pageviews.' . $domain_id . '.settings';
       $domain_settings = \Drupal::config($domain_settings_name);
 
       // Get $form_state values.

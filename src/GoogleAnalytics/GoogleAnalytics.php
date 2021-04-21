@@ -1,6 +1,6 @@
 <?php
 
-namespace Drupal\s360_most_popular\GoogleAnalytics;
+namespace Drupal\s360_ga_pageviews\GoogleAnalytics;
 
 use Google_Client;
 use Google_Service_AnalyticsReporting;
@@ -45,7 +45,7 @@ class GoogleAnalytics {
     // Use the developers console and download your service account
     // credentials in JSON format. Place them in this directory or
     // change the key file location if necessary.
-    $key_file_location = S360_MOST_POPULAR_PRIVATE_FOLDER_PATH . '/' . S360_MOST_POPULAR_GA_KEY_FILE_FOLDER . '/' . $this->config['key_file'];
+    $key_file_location = S360_GA_PAGEVIEWS_PRIVATE_FOLDER_PATH . '/' . S360_GA_PAGEVIEWS_GA_KEY_FILE_FOLDER . '/' . $this->config['key_file'];
 
     // Create and configure a new client object.
     $client = new Google_Client();

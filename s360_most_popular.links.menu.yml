@@ -1,6 +1,0 @@
-s360_most_popular.settings:
-  title: 'S360 Most Popular'
-  parent: system.admin_config_services
-  description: 'Configure S360 Most Popular'
-  route_name: s360_most_popular.settings
-  weight: 99

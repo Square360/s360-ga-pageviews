@@ -5,21 +5,15 @@ use Drupal\file\Entity\File;
 /**
  * Implements hook_schema().
  */
-function s360_most_popular_schema() {
-  $schema['s360_mpga'] = [
+function s360_ga_pageviews_schema() {
+  $schema[S360_GA_PAGEVIEWS_TABLE_NAME] = [
     'description' => 'Stores data associated with Google Analytics.',
     'fields' => [
-      'mpid' => [
-        'description' => 'The primary identifier for most popular',
-        'type' => 'serial',
-        'not null' => TRUE,
-        'unsigned' => TRUE,
-      ],
       'nid' => [
-        'description' => 'The node id.',
+        'description' => 'The id of the node matched from page_path.',
         'type' => 'int',
         'length' => 10,
-        'not null' => FALSE,
+        'not null' => TRUE,
         'unsigned' => TRUE,
       ],
       'page_path' => [
@@ -36,13 +30,16 @@ function s360_most_popular_schema() {
         'unsigned' => TRUE,
       ],
       'domain' => [
-        'description' => '',
+        'description' => 'What domain the page_path belongs to.',
         'type' => 'varchar',
         'length' => 255,
         'not null' => TRUE,
       ],
     ],
-    'primary key' => ['mpid'],
+    'indexes' => [
+      'nid' => ['nid'],
+      'page_path' => ['page_path'],
+    ]
   ];
 
   return $schema;
@@ -51,14 +48,11 @@ function s360_most_popular_schema() {
 /**
  * Implements hook_uninstall().
  */
-function s360_most_popular_uninstall() {
-  $domains = array_merge(
-    [s360_most_popular_get_default_domain()],
-    s360_most_popular_get_drupal_domains()
-  );
+function s360_ga_pageviews_uninstall() {
+  $domains = s360_ga_pageviews_get_domains();
 
   foreach ($domains as $domain) {
-    $domain_settings = \Drupal::config('s360_most_popular.' . $domain['id'] . '.settings');
+    $domain_settings = \Drupal::config('s360_ga_pageviews.' . $domain['id'] . '.settings');
     $domain_key_file = $domain_settings->get('key_file');
 
     if ($domain_key_file) {
@@ -69,7 +63,6 @@ function s360_most_popular_uninstall() {
       }
     }
 
-    \Drupal::configFactory()->getEditable('s360_most_popular.' . $domain['id'] . '.settings')->delete();
+    \Drupal::configFactory()->getEditable('s360_ga_pageviews.' . $domain['id'] . '.settings')->delete();
   }
-
 }

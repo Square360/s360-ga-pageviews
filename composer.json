@@ -1,12 +1,13 @@
 {
-    "name": "square360/s360_most_popular",
-    "description": "Square360 Most Popular",
+    "name": "square360/s360_ga_pageviews",
+    "description": "Use the pageviews metric from Google Analytics to get total number of pages viewed.",
     "type": "drupal-module",
     "keywords": [
         "Drupal",
-        "Google Analytics"
+        "Google Analytics",
+        "Statistics"
     ],
     "license": "GPL-2.0+",
     "minimum-stability": "dev",
-    "version": "1.0.0"
+    "version": "1.1.0"
 }
