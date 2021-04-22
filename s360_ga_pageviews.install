@@ -9,6 +9,13 @@ function s360_ga_pageviews_schema() {
   $schema[S360_GA_PAGEVIEWS_TABLE_NAME] = [
     'description' => 'Stores data associated with Google Analytics.',
     'fields' => [
+      'id' => [
+        'description' => 'The id of the ga pageviews record.',
+        'type' => 'serial',
+        'length' => 10,
+        'not null' => TRUE,
+        'unsigned' => TRUE,
+      ],
       'nid' => [
         'description' => 'The id of the node matched from page_path.',
         'type' => 'int',
@@ -39,7 +46,8 @@ function s360_ga_pageviews_schema() {
     'indexes' => [
       'nid' => ['nid'],
       'page_path' => ['page_path'],
-    ]
+    ],
+    'primary key' => ['id'],
   ];
 
   return $schema;
@@ -64,5 +72,6 @@ function s360_ga_pageviews_uninstall() {
     }
 
     \Drupal::configFactory()->getEditable('s360_ga_pageviews.' . $domain['id'] . '.settings')->delete();
+    \Drupal::state()->delete(S360_GA_PAGEVIEWS_CRON_LAST_RUN);
   }
 }

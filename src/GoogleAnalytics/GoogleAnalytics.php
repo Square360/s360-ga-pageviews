@@ -119,7 +119,7 @@ class GoogleAnalytics {
         $pageviews = (int) reset($metrics);
 
         $page_path = reset($dimensions);
-        $page_path_parts = explode('?', $page_path);
+        $page_path_parts = preg_split('/(\?|\#)/', $page_path);
         $current_page_path = $page_path_parts[0];
 
         $raw_report[$page_path] = $pageviews;

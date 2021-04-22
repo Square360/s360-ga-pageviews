@@ -5,7 +5,6 @@
  * s360_ga_pageviews.module
  */
 
-use Drupal\Component\Utility\Timer;
 use Drupal\Core\Cache\CacheBackendInterface;
 use Drupal\Core\StreamWrapper\PrivateStream;
 use Drupal\file\Entity\File;
@@ -14,19 +13,20 @@ use Drupal\s360_ga_pageviews\GoogleAnalytics\GoogleAnalytics;
 define('S360_GA_PAGEVIEWS_PRIVATE_FOLDER_PATH', PrivateStream::basePath());
 define('S360_GA_PAGEVIEWS_GA_KEY_FILE_FOLDER', 'ga_key_file');
 define('S360_GA_PAGEVIEWS_TABLE_NAME', 's360_ga_pageviews');
+define('S360_GA_PAGEVIEWS_CRON_LAST_RUN', 's360_ga_pageviews.cron_last_run');
 
 /**
  * Implements hook_cron().
  */
 function s360_ga_pageviews_cron() {
-  $last_run = \Drupal::state()->get('s360_ga_pageviews.last_run', 0);
+  $cron_last_run = \Drupal::state()->get(S360_GA_PAGEVIEWS_CRON_LAST_RUN, 0);
   $request_time = \Drupal::time()->getRequestTime();
 
   // Make sure this only runs once a day.
-  if (($request_time - $last_run) > 86400) {
+  if (($request_time - $cron_last_run) > 86400) {
     _s360_ga_pageviews_generate_google_analytics_report();
 
-    \Drupal::state()->set('s360_ga_pageviews.last_run', $request_time);
+    \Drupal::state()->set(S360_GA_PAGEVIEWS_CRON_LAST_RUN, $request_time);
   }
 }
 
@@ -214,15 +214,17 @@ function _s360_ga_pageviews_save_google_analytics_data($domain_id, $ga_report) {
         $nid = $matches[1];
       }
 
-      // Insert the GA records.
-      $connection->insert(S360_GA_PAGEVIEWS_TABLE_NAME)
-        ->fields([
-          'nid' => $nid,
-          'page_path' => $page_path,
-          'pageviews' => $pageviews,
-          'domain' => $domain_id,
-        ])
-        ->execute();
+      if ($nid) {
+        // Insert the GA records.
+        $connection->insert(S360_GA_PAGEVIEWS_TABLE_NAME)
+          ->fields([
+            'nid' => $nid,
+            'page_path' => $page_path,
+            'pageviews' => $pageviews,
+            'domain' => $domain_id,
+          ])
+          ->execute();
+      }
     }
     catch (Exception $e) {
       $message = [
