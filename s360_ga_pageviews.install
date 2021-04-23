@@ -68,7 +68,6 @@ function s360_ga_pageviews_update_8001() {
   $s360_ga_pageviews_fields = drupal_get_module_schema('s360_ga_pageviews', S360_GA_PAGEVIEWS_TABLE_NAME)['fields'];
 
   $nid_spec = $s360_ga_pageviews_fields['nid'];
-  $nid_spec['not null'] = FALSE;
 
   $schema = Database::getConnection()->schema();
   $schema->changeField(S360_GA_PAGEVIEWS_TABLE_NAME, 'nid', 'nid', $nid_spec);
