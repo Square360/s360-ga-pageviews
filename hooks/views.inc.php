@@ -28,6 +28,12 @@ function s360_ga_pageviews_views_data() {
     'field' => 'nid',
   ];
 
+  $data[S360_GA_PAGEVIEWS_TABLE_NAME]['table']['join']['taxonomy_term_field_data'] = [
+    'left_table' => 'taxonomy_term_data',
+    'left_field' => 'tid',
+    'field' => 'tid',
+  ];
+
   $data[S360_GA_PAGEVIEWS_TABLE_NAME]['nid'] = [
     'title' => t('Content'),
     'help' => t('Relate GA Pageviews to node content.'),
@@ -41,6 +47,20 @@ function s360_ga_pageviews_views_data() {
     ],
   ];
 
+  $data[S360_GA_PAGEVIEWS_TABLE_NAME]['tid'] = [
+    'title' => t('Taxonomy terms'),
+    'help' => t('Relate GA Pageviews to taxonomy terms.'),
+    'relationship' => [
+      // Views name of the table to join to for the relationship.
+      'base' => 'taxonomy_term_data',
+      // Database field name in the other table to join on.
+      'base field' => 'tid',
+      // ID of relationship handler plugin to use.
+      'id' => 'standard',
+    ],
+  ];
+
+  // Expose the field, sort, filter and argument for pageviews.
   $data[S360_GA_PAGEVIEWS_TABLE_NAME]['pageviews'] = [
     'title' => t('Pageviews'),
     'help' => t('Total number of page views by path.'),
@@ -58,6 +78,7 @@ function s360_ga_pageviews_views_data() {
     ],
   ];
 
+  // Expose the field, sort, filter and argument for page_path.
   $data[S360_GA_PAGEVIEWS_TABLE_NAME]['page_path'] = [
     'title' => t('Page Path'),
     'help' => t('The alias'),
@@ -75,6 +96,7 @@ function s360_ga_pageviews_views_data() {
     ],
   ];
 
+  // Expose the field, sort, filter and argument for domain.
   $data[S360_GA_PAGEVIEWS_TABLE_NAME]['domain'] = [
     'title' => t('Domain'),
     'help' => t('What domain the page belongs to'),
