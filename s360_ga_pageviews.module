@@ -5,6 +5,9 @@
  * s360_ga_pageviews.module
  */
 
+require_once drupal_get_path('module', 's360_ga_pageviews') . '/hooks/views.inc.php';
+
+
 use Drupal\Core\Cache\CacheBackendInterface;
 use Drupal\Core\StreamWrapper\PrivateStream;
 use Drupal\file\Entity\File;
