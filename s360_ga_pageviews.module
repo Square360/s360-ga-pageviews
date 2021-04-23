@@ -5,6 +5,8 @@
  * s360_ga_pageviews.module
  */
 
+require_once drupal_get_path('module', 's360_ga_pageviews') . '/hooks/views.inc.php';
+
 use Drupal\Core\Cache\CacheBackendInterface;
 use Drupal\Core\StreamWrapper\PrivateStream;
 use Drupal\file\Entity\File;
@@ -112,31 +114,45 @@ function s360_ga_pageviews_get_default_domain() {
  *   The final, merged config for the domain.
  */
 function _s360_ga_pageviews_merge_domain_config($domain_id) {
+  // Get domain settings.
   $default_domain_settings = \Drupal::config('s360_ga_pageviews.default.settings');
-  $default_domain_key_file = $default_domain_settings->get('key_file');
-  $default_domain_view_id = $default_domain_settings->get('view_id');
-  $default_domain_filter_expression = $default_domain_settings->get('filter_expression');
-  $default_domain_look_back = $default_domain_settings->get('look_back');
-
   $domain_settings = \Drupal::config('s360_ga_pageviews.' . $domain_id . '.settings');
-  $domain_key_file = $domain_settings->get('key_file');
-  $domain_view_id = $domain_settings->get('view_id');
-  $domain_filter_expression = $domain_settings->get('filter_expression');
-  $domain_look_back = $default_domain_settings->get('look_back');
 
-  if ($domain_key_file) {
-    $file = File::load(reset($domain_key_file));
-  }
-  else {
-    $file = File::load(reset($default_domain_key_file));
+  $has_default_domain_settings = FALSE;
+  $has_domain_settings = FALSE;
+
+  // If there are default domain settings, split them into their different parts.
+  if (!empty($default_domain_settings->getRawData())) {
+    $has_default_domain_settings = TRUE;
+
+    $default_domain_key_file = $default_domain_settings->get('key_file');
+    $default_domain_view_id = $default_domain_settings->get('view_id');
+    $default_domain_filter_expression = $default_domain_settings->get('filter_expression');
+    $default_domain_look_back = $default_domain_settings->get('look_back');
+
+    $key_file = File::load(reset($default_domain_key_file));
   }
 
-  if ($file) {
-    $key_file = $file->getFilename();
+  // If there are domain settings, split them into their different parts.
+  if (!empty($domain_settings->getRawData())) {
+    $has_domain_settings = TRUE;
+
+    $domain_key_file = $domain_settings->get('key_file');
+    $domain_view_id = $domain_settings->get('view_id');
+    $domain_filter_expression = $domain_settings->get('filter_expression');
+    $domain_look_back = $default_domain_settings->get('look_back');
+
+    if ($domain_key_file) {
+      $key_file = File::load(reset($domain_key_file));
+    }
+  }
+
+  if (!$has_default_domain_settings && !$has_domain_settings) {
+    return [];
   }
 
   return [
-    'key_file' => $key_file,
+    'key_file' => $key_file->getFilename(),
     'view_id' => ($domain_view_id) ? $domain_view_id : $default_domain_view_id,
     'filter_expression' => ($domain_filter_expression) ? $domain_filter_expression : $default_domain_filter_expression,
     'look_back' => ($domain_look_back) ? $domain_look_back : $default_domain_look_back,
@@ -163,16 +179,16 @@ function _s360_ga_pageviews_generate_google_analytics_report() {
     // Merge the default domain config with the $domain.
     $domain_config = _s360_ga_pageviews_merge_domain_config($domain_id);
 
+    // Skip GA initialize if the $domain_config is empty.
+    if (empty($domain_config)) {
+      continue;
+    }
+
     // Add name and id to the $domain_config.
     $domain_config = array_merge($domain_config, [
       'name' => $domain_name,
       'id' => $domain_id,
     ]);
-
-    // Skip GA initialize if the view_id is empty.
-    if (empty($domain_config['view_id'])) {
-      continue;
-    }
 
     // Query Google Analytics.
     $ga = new GoogleAnalytics($domain_config);
@@ -201,30 +217,34 @@ function _s360_ga_pageviews_save_google_analytics_data($domain_id, $ga_report) {
     ->condition('domain', $domain_id)
     ->execute();
 
-    // Loop over the $ga_report where $page_path is the key and $pageviews is the value.
+  // Loop over the $ga_report where $page_path is the key and $pageviews is the value.
   foreach ($ga_report as $page_path => $pageviews) {
+    $nid = 0;
+    $tid = 0;
+
     try {
       // Get the internal path based on the $page_path.
       $path_alias = \Drupal::service('path_alias.manager')->getPathByAlias($page_path);
-
-      $nid = 0;
 
       // If $path_alias matches a node/ route, get the $nid from the $matches.
       if (preg_match('/node\/(\d+)/', $path_alias, $matches)) {
         $nid = $matches[1];
       }
-
-      if ($nid) {
-        // Insert the GA records.
-        $connection->insert(S360_GA_PAGEVIEWS_TABLE_NAME)
-          ->fields([
-            'nid' => $nid,
-            'page_path' => $page_path,
-            'pageviews' => $pageviews,
-            'domain' => $domain_id,
-          ])
-          ->execute();
+      // If $path_alias matches a taxonomy/term/ route, get the $tid from the $matches.
+      elseif (preg_match('/taxonomy\/term\/(\d+)/', $path_alias, $matches)) {
+        $tid = $matches[1];
       }
+
+      // Insert the GA records.
+      $connection->insert(S360_GA_PAGEVIEWS_TABLE_NAME)
+        ->fields([
+          'nid' => ($nid) ? $nid : NULL,
+          'tid' => ($tid) ? $tid : NULL,
+          'page_path' => $page_path,
+          'pageviews' => $pageviews,
+          'domain' => $domain_id,
+        ])
+        ->execute();
     }
     catch (Exception $e) {
       $message = [
