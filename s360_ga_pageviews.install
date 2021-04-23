@@ -1,6 +1,7 @@
 <?php
 
 use Drupal\file\Entity\File;
+use Drupal\Core\Database\Database;
 
 /**
  * Implements hook_schema().
@@ -20,7 +21,14 @@ function s360_ga_pageviews_schema() {
         'description' => 'The id of the node matched from page_path.',
         'type' => 'int',
         'length' => 10,
-        'not null' => TRUE,
+        'not null' => FALSE,
+        'unsigned' => TRUE,
+      ],
+      'tid' => [
+        'description' => 'The id of the taxonomy_term matched from page_path.',
+        'type' => 'int',
+        'length' => 10,
+        'not null' => FALSE,
         'unsigned' => TRUE,
       ],
       'page_path' => [
@@ -51,6 +59,31 @@ function s360_ga_pageviews_schema() {
   ];
 
   return $schema;
+}
+
+/**
+ * Update {s360_ga_pageviews.nid} field to allow "null" values.
+ */
+function s360_ga_pageviews_update_8001() {
+  $s360_ga_pageviews_fields = drupal_get_module_schema('s360_ga_pageviews', S360_GA_PAGEVIEWS_TABLE_NAME)['fields'];
+
+  $nid_spec = $s360_ga_pageviews_fields['nid'];
+  $nid_spec['not null'] = FALSE;
+
+  $schema = Database::getConnection()->schema();
+  $schema->changeField(S360_GA_PAGEVIEWS_TABLE_NAME, 'nid', 'nid', $nid_spec);
+}
+
+/**
+ * Adds tid field in {s360_ga_pageviews}.
+ */
+function s360_ga_pageviews_update_8002() {
+  $s360_ga_pageviews_fields = drupal_get_module_schema('s360_ga_pageviews', S360_GA_PAGEVIEWS_TABLE_NAME)['fields'];
+
+  $tid_spec = $s360_ga_pageviews_fields['tid'];
+
+  $schema = Database::getConnection()->schema();
+  $schema->addField(S360_GA_PAGEVIEWS_TABLE_NAME, 'tid', $tid_spec);
 }
 
 /**
